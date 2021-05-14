@@ -71,7 +71,7 @@ export class ArticleService {
 
   async crawlTopic(): Promise<boolean> {
     const data = await this.tagRepository.find();
-    let articleArray = [];
+    const articleArray = [];
     for (let tag = 0; tag < data.length; tag++) {
       // data.map(u => {
       for (let page = 1; page <= data[tag].totalPage; page++) {
@@ -79,36 +79,7 @@ export class ArticleService {
           url: `${data[tag].url}?page=${page}`,
           tag: data[tag],
         });
-        // console.log(`crawl :${data[tag].url}?page=${page}`);
-        // const nightMare = new Nightmare({ show: false });
-
-        // await nightMare
-        //   .goto(`${data[tag].url}?page=${page}`)
-        //   .wait(2000)
-        //   .evaluate(() => document.querySelector('body').innerHTML)
-        //   .end()
-        //   .then(async response => {
-        //     const result = await this.getData(response);
-        //     for (let j = 0; j < result.length; j++) {
-        //       const article = await this.articleRepository.findOne({
-        //         title: result[j].title,
-        //       });
-        //       if (article) {
-        //         continue;
-        //       }
-        //       await this.articleRepository.save({
-        //         title: result[j].title,
-        //         link: `${baseUrl}${result[j].link}`,
-        //         tag: data[tag],
-        //       });
-        //     }
-        //   })
-        //   .catch(e => {
-        //     customThrowError(`Error happend, ${e}`, HttpStatus.BAD_GATEWAY);
-        //   });
       }
-
-      // });
     }
 
     const chunk = 6;
@@ -169,19 +140,18 @@ export class ArticleService {
     const articleData = await this.articleRepository.find({
       where: { content: null },
     });
-    const chunk = 6;
+    const chunk = 7;
 
     const j = articleData.length;
     for (let count = 0; count < j; count += chunk) {
       const tempData = articleData.slice(count, count + chunk);
-      console.log('tempData: ', tempData.length);
       await Promise.all(
         tempData.map(async u => {
           const nightMare = new Nightmare({ show: false });
-          console.log(`running ${u.link}`);
+          console.log(`running ${u.title}`);
           await nightMare
             .goto(`${u.link}`)
-            .wait(5000)
+            .wait(3000)
             .wait('img')
             .evaluate(() => document.querySelector('body').innerHTML)
             .end()
@@ -201,7 +171,7 @@ export class ArticleService {
         }),
       );
     }
-
+    console.log('done');
     return true;
   }
 
@@ -236,4 +206,12 @@ export class ArticleService {
     });
     return data;
   };
+
+  async cleanArticles(): Promise<boolean> {
+    const articles = await this.articleRepository.find({
+      where: [{ content: '' }, { content: null }],
+    });
+    await this.articleRepository.remove(articles);
+    return true;
+  }
 }
