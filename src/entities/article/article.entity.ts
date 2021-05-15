@@ -39,4 +39,9 @@ export class Article extends BaseEntity {
     tag => tag.articles,
   )
   tag: Tag;
+
+  @Column({
+    default: false,
+  })
+  processed: boolean;
 }

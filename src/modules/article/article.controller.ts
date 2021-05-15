@@ -41,4 +41,10 @@ export class ArticleController {
   async getDataContent(): Promise<boolean> {
     return await this.articleService.getDataContent();
   }
+
+  @Get('clean-data')
+  @SetMetadata(METADATA.IS_PUBLIC, true)
+  async cleanData(): Promise<boolean> {
+    return await this.articleService.cleanArticles();
+  }
 }

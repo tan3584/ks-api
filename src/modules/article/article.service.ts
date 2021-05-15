@@ -8,6 +8,7 @@ import { Article } from 'src/entities/article/article.entity';
 import { Tag } from 'src/entities/tag/tag.entity';
 import { Repository } from 'typeorm';
 import { ArticleRequest } from './dto/articleRequest.dto';
+import { Cron } from '@nestjs/schedule';
 const cheerio = require('cheerio');
 const Nightmare = require('nightmare');
 const baseUrl = 'https://hackernoon.com';
@@ -22,7 +23,19 @@ export class ArticleService {
   ) {}
   async search(request: ArticleRequest): Promise<any> {
     console.log({ request });
-    return request;
+    const { skip, take, searchKeyword } = request;
+    return await this.articleRepository
+      .createQueryBuilder('article')
+      .skip(skip)
+      .take(take)
+      .where('title ILIKE :searchTerm', {
+        searchTerm: `%${searchKeyword}%`,
+      })
+      .orWhere('content ILIKE :searchTerm', {
+        searchTerm: `%${searchKeyword}%`,
+      })
+      .select()
+      .getManyAndCount();
   }
 
   async dataCrawling(): Promise<boolean> {
@@ -123,6 +136,22 @@ export class ArticleService {
 
     return true;
   }
+  //schedule
+  @Cron('5 * * * * *')
+  crawlSchedule() {
+    //getData
+    console.log('run 45s');
+    const newPost = this.articleRepository.find({
+      where: { processed: false },
+    });
+    try {
+      // call flask
+    } catch (e) {
+      customThrowError('chedule false, error: ', e);
+    }
+
+    return true;
+  }
 
   public getData = (html: any) => {
     const data = [];
@@ -211,7 +240,9 @@ export class ArticleService {
     const articles = await this.articleRepository.find({
       where: [{ content: '' }, { content: null }],
     });
-    await this.articleRepository.remove(articles);
+    articles.map(async article => {
+      await this.articleRepository.delete(article.id);
+    });
     return true;
   }
 }
