@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 /* eslint-disable @typescript-eslint/no-var-requires */
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpService, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import got from 'got';
 import { customThrowError } from 'src/common/helpers/throw.helper';
@@ -20,6 +20,7 @@ export class ArticleService {
     private readonly tagRepository: Repository<Tag>,
     @InjectRepository(Article)
     private readonly articleRepository: Repository<Article>,
+    private readonly httpService: HttpService,
   ) {}
   async search(request: ArticleRequest): Promise<any> {
     console.log({ request });
@@ -138,14 +139,24 @@ export class ArticleService {
   }
   //schedule
   @Cron('5 * * * * *')
-  crawlSchedule() {
+  async crawlSchedule() {
     //getData
     console.log('run 45s');
-    const newPost = this.articleRepository.find({
+    const newPost = await this.articleRepository.find({
       where: { processed: false },
     });
     try {
-      // call flask
+      for (let i = 0; i < newPost.length; i++) {
+        const result = await this.httpService
+          .post('localhost:5050/preprocess', newPost)
+          .toPromise();
+        if (result) {
+          await this.articleRepository.save({
+            id: newPost[i].id,
+            processed: true,
+          });
+        }
+      }
     } catch (e) {
       customThrowError('chedule false, error: ', e);
     }

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { HttpModule, Module } from '@nestjs/common';
 import { ElasticsearchModule } from '@nestjs/elasticsearch';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Article } from 'src/entities/article/article.entity';
@@ -12,6 +12,7 @@ import { ArticleService } from './article.service';
     ElasticsearchModule.register({
       node: 'http://localhost:9200',
     }),
+    HttpModule,
   ],
   controllers: [ArticleController],
   providers: [ArticleService],

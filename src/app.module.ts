@@ -14,6 +14,7 @@ import { Article } from './entities/article/article.entity';
 import { Log } from './entities/log/log.entity';
 import { Tag } from './entities/tag/tag.entity';
 import { ArticleModule } from './modules/article/article.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 const env = process.env.NODE_ENV || 'development';
 
@@ -29,7 +30,7 @@ const entities = [Log, Tag, Article];
       envFilePath,
     }),
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
+      imports: [ConfigModule, ScheduleModule.forRoot()],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         host: configService.get('DB_HOST'),
