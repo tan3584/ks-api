@@ -138,31 +138,31 @@ export class ArticleService {
     return true;
   }
   //schedule
-  @Cron('5 * * * * *')
-  async crawlSchedule() {
-    //getData
-    console.log('run 45s');
-    const newPost = await this.articleRepository.find({
-      where: { processed: false },
-    });
-    try {
-      for (let i = 0; i < newPost.length; i++) {
-        const result = await this.httpService
-          .post('localhost:5050/preprocess', newPost)
-          .toPromise();
-        if (result) {
-          await this.articleRepository.save({
-            id: newPost[i].id,
-            processed: true,
-          });
-        }
-      }
-    } catch (e) {
-      customThrowError('chedule false, error: ', e);
-    }
+  // @Cron('5 * * * * *')
+  // async crawlSchedule() {
+  //   //getData
+  //   console.log('run 45s');
+  //   const newPost = await this.articleRepository.find({
+  //     where: { processed: false },
+  //   });
+  //   try {
+  //     for (let i = 0; i < newPost.length; i++) {
+  //       const result = await this.httpService
+  //         .post('localhost:5050/preprocess', newPost)
+  //         .toPromise();
+  //       if (result) {
+  //         await this.articleRepository.save({
+  //           id: newPost[i].id,
+  //           processed: true,
+  //         });
+  //       }
+  //     }
+  //   } catch (e) {
+  //     customThrowError('chedule false, error: ', e);
+  //   }
 
-    return true;
-  }
+  //   return true;
+  // }
 
   public getData = (html: any) => {
     const data = [];
@@ -178,7 +178,7 @@ export class ArticleService {
 
   public async getDataContent(): Promise<boolean> {
     const articleData = await this.articleRepository.find({
-      where: { content: null },
+      where: { content: '' },
     });
     const chunk = 7;
 
@@ -192,7 +192,6 @@ export class ArticleService {
           await nightMare
             .goto(`${u.link}`)
             .wait(3000)
-            .wait('img')
             .evaluate(() => document.querySelector('body').innerHTML)
             .end()
             .then(async response => {
@@ -206,7 +205,8 @@ export class ArticleService {
               });
             })
             .catch(e => {
-              customThrowError(`Error happend, ${e}`, HttpStatus.BAD_GATEWAY);
+              console.log('error happend', e);
+              // customThrowError(`Error happend, ${e}`, HttpStatus.BAD_GATEWAY);
             });
         }),
       );
