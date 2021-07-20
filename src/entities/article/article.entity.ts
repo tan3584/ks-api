@@ -44,4 +44,10 @@ export class Article extends BaseEntity {
     default: false,
   })
   processed: boolean;
+
+  @Column({ nullable: true })
+  processedDate: Date;
+
+  @Column({ nullable: true })
+  thumpImg: string;
 }

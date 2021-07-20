@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { METADATA } from 'src/common/constants/metadata/metadata.constant';
+import { getImg } from 'src/common/dto/pagination.dto';
 import { ArticleService } from './article.service';
 import { ArticleRequest } from './dto/articleRequest.dto';
 
@@ -23,10 +24,17 @@ export class ArticleController {
     return await this.articleService.search(articleRequest);
   }
 
+  @Get('articles')
+  @SetMetadata(METADATA.IS_PUBLIC, true)
+  async getArticleByDate(
+    @Query() articleRequest: ArticleRequest,
+  ): Promise<any> {
+    return await this.articleService.getArticlesByDate(articleRequest);
+  }
+
   @Get('crawling')
   @SetMetadata(METADATA.IS_PUBLIC, true)
   async crawling(): Promise<boolean> {
-    console.log('crawl');
     return await this.articleService.dataCrawling();
   }
 
@@ -38,8 +46,8 @@ export class ArticleController {
 
   @Get('content')
   @SetMetadata(METADATA.IS_PUBLIC, true)
-  async getDataContent(): Promise<boolean> {
-    return await this.articleService.getDataContent();
+  async getDataContent(@Query() getRequest: getImg): Promise<boolean> {
+    return await this.articleService.getDataContent(getRequest);
   }
 
   @Get('clean-data')

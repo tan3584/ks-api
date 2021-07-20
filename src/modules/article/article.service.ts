@@ -1,20 +1,26 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 /* eslint-disable @typescript-eslint/no-var-requires */
-import { HttpService, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  HttpService,
+  HttpStatus,
+  Injectable,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import got from 'got';
+import * as moment from 'moment';
+import { getImg } from 'src/common/dto/pagination.dto';
 import { customThrowError } from 'src/common/helpers/throw.helper';
 import { Article } from 'src/entities/article/article.entity';
 import { Tag } from 'src/entities/tag/tag.entity';
 import { Repository } from 'typeorm';
 import { ArticleRequest } from './dto/articleRequest.dto';
-import { Cron } from '@nestjs/schedule';
 const cheerio = require('cheerio');
 const Nightmare = require('nightmare');
 const baseUrl = 'https://hackernoon.com';
 
 @Injectable()
-export class ArticleService {
+export class ArticleService implements OnModuleInit {
   constructor(
     @InjectRepository(Tag)
     private readonly tagRepository: Repository<Tag>,
@@ -22,6 +28,12 @@ export class ArticleService {
     private readonly articleRepository: Repository<Article>,
     private readonly httpService: HttpService,
   ) {}
+
+  async onModuleInit(): Promise<boolean> {
+    await this.updateDateTime();
+    return true;
+  }
+
   async search(request: ArticleRequest): Promise<any> {
     console.log({ request });
     const { skip, take, searchKeyword } = request;
@@ -176,10 +188,18 @@ export class ArticleService {
     return data;
   };
 
-  public async getDataContent(): Promise<boolean> {
-    const articleData = await this.articleRepository.find({
-      where: { content: '' },
-    });
+  public async getDataContent(getRequest?: getImg): Promise<boolean> {
+    const { getImg } = getRequest;
+    const articleData = getImg
+      ? await this.articleRepository.find({
+          where: [{ thumpImg: null }, { thumpImg: '' }],
+        })
+      : await this.articleRepository.find({
+          where: { content: '' },
+          order: {
+            processedDate: 'DESC',
+          },
+        });
     const chunk = 7;
 
     const j = articleData.length;
@@ -195,14 +215,23 @@ export class ArticleService {
             .evaluate(() => document.querySelector('body').innerHTML)
             .end()
             .then(async response => {
-              const contentData = await this._getContent(response);
-              await this.articleRepository.save({
-                id: u.id,
-                date: contentData.date,
-                content: contentData.content,
-                imgUrl: contentData.imgUrl,
-                author: contentData.author,
-              });
+              const contentData = await this._getContent(
+                response,
+                getImg ? getImg : false,
+              );
+
+              getImg
+                ? await this.articleRepository.save({
+                    id: u.id,
+                    thumpImg: contentData.thumpImg,
+                  })
+                : await this.articleRepository.save({
+                    id: u.id,
+                    date: contentData.date,
+                    content: contentData.content,
+                    imgUrl: contentData.imgUrl,
+                    author: contentData.author,
+                  });
             })
             .catch(e => {
               console.log('error happend', e);
@@ -215,9 +244,28 @@ export class ArticleService {
     return true;
   }
 
-  private _getContent = (html: any) => {
-    const data = { author: '', content: '', imgUrl: '', date: '' };
+  private _getContent = (html: any, getImg?: boolean) => {
+    const data = {
+      author: '',
+      content: '',
+      imgUrl: '',
+      date: '',
+      thumpImg: '',
+    };
     const $ = cheerio.load(html);
+    if (getImg) {
+      $('.image-container.feat div img').each((i, element) => {
+        if (
+          $(element)
+            .attr('src')
+            .includes('/_next')
+        ) {
+          data.thumpImg = $(element).attr('src');
+          return;
+        }
+      });
+      return data;
+    }
     $('.profileImage div img').each((i, element) => {
       if (
         $(element)
@@ -254,6 +302,49 @@ export class ArticleService {
     articles.map(async article => {
       await this.articleRepository.delete(article.id);
     });
+    return true;
+  }
+
+  async updateDateTime(): Promise<boolean> {
+    const articles = await this.articleRepository.find({
+      where: [{ processedDate: null }],
+    });
+    articles.map(async article => {
+      const date = moment(
+        `${article.date.replace(/(^\s+|\s+$)/g, '')}`,
+        'MMMM Do YYYY',
+      ).format();
+      await this.articleRepository.update(
+        { id: article.id },
+        { processedDate: date },
+      );
+    });
+    return true;
+  }
+
+  async getArticlesByDate(
+    request: ArticleRequest,
+  ): Promise<[Article[], number]> {
+    const { skip, take } = request;
+    const [articles, count] = await this.articleRepository
+      .createQueryBuilder('article')
+      .leftJoinAndSelect('article.tag', 'tag')
+      .skip(skip)
+      .take(take)
+      .orderBy('article.processedDate', 'DESC')
+      .select()
+      .getManyAndCount();
+
+    return [articles, count];
+  }
+
+  async getThumpImg(): Promise<boolean> {
+    const articles = await this.articleRepository.find({
+      where: [{ thumpImg: null }],
+    });
+    // articles.map(async article => {
+    //   await this.articleRepository.delete(article.id);
+    // });
     return true;
   }
 }

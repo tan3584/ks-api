@@ -31,3 +31,8 @@ export class PaginationRequest {
   })
   orderDirection?: SortDirection;
 }
+
+export class getImg {
+  @ApiProperty()
+  getImg: boolean;
+}
