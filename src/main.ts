@@ -62,7 +62,8 @@ async function bootstrap() {
 
   app.useGlobalInterceptors(new FormatResponseInterceptor());
 
-  await app.listen(port, '0.0.0.0');
+  // await app.listen(port, '0.0.0.0');
+  await app.listen(process.env.PORT || 3000);
 
   console.log(`api app is working on port: ${port}`);
 }
