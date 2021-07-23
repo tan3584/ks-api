@@ -13,7 +13,7 @@ import { getImg } from 'src/common/dto/pagination.dto';
 import { customThrowError } from 'src/common/helpers/throw.helper';
 import { Article } from 'src/entities/article/article.entity';
 import { Tag } from 'src/entities/tag/tag.entity';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { ArticleRequest } from './dto/articleRequest.dto';
 const cheerio = require('cheerio');
 const Nightmare = require('nightmare');
@@ -310,14 +310,17 @@ export class ArticleService implements OnModuleInit {
       where: [{ processedDate: null }],
     });
     articles.map(async article => {
-      const date = moment(
-        `${article.date.replace(/(^\s+|\s+$)/g, '')}`,
-        'MMMM Do YYYY',
-      ).format();
-      await this.articleRepository.update(
-        { id: article.id },
-        { processedDate: date },
-      );
+      if (article.date) {
+        const date = moment(
+          `${article.date.replace(/(^\s+|\s+$)/g, '')}`,
+          'MMMM Do YYYY',
+        ).format();
+
+        await this.articleRepository.update(
+          { id: article.id },
+          { processedDate: date },
+        );
+      }
     });
     return true;
   }
