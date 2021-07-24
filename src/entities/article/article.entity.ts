@@ -40,6 +40,9 @@ export class Article extends BaseEntity {
   )
   tag: Tag;
 
+  @Column({ nullable: true })
+  tagId: number;
+
   @Column({
     default: false,
   })

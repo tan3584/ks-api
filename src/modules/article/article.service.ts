@@ -13,7 +13,7 @@ import { getImg } from 'src/common/dto/pagination.dto';
 import { customThrowError } from 'src/common/helpers/throw.helper';
 import { Article } from 'src/entities/article/article.entity';
 import { Tag } from 'src/entities/tag/tag.entity';
-import { IsNull, Not, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { ArticleRequest } from './dto/articleRequest.dto';
 const cheerio = require('cheerio');
 const Nightmare = require('nightmare');
@@ -149,6 +149,60 @@ export class ArticleService implements OnModuleInit {
 
     return true;
   }
+
+  async crawl10ArticlePerTopic(): Promise<boolean> {
+    const data = await this.tagRepository.find();
+    const articleArray = [];
+    for (let tag = 0; tag < data.length; tag++) {
+      // data.map(u => {
+      articleArray.push({
+        url: `${data[tag].url}?page=${1}`,
+        tag: data[tag],
+      });
+    }
+
+    const chunk = 6;
+
+    const j = articleArray.length;
+    for (let count = 0; count < j; count += chunk) {
+      const tempData = articleArray.slice(count, count + chunk);
+      await Promise.all(
+        tempData.map(async u => {
+          console.log(`crawl :${u.url}`);
+          const nightMare = new Nightmare({
+            show: false,
+          });
+          await nightMare
+            .goto(`${u.url}`)
+            .wait(2000)
+            .evaluate(() => document.querySelector('body').innerHTML)
+            .end()
+            .then(async response => {
+              const result = await this.getData(response);
+              for (let j = 0; j < result.length; j++) {
+                const article = await this.articleRepository.findOne({
+                  title: result[j].title,
+                });
+                if (article) {
+                  continue;
+                }
+                await this.articleRepository.save({
+                  title: result[j].title,
+                  link: `${baseUrl}${result[j].link}`,
+                  tag: u.tag,
+                });
+              }
+            })
+            .catch(e => {
+              // customThrowError(`Error happend, ${e}`, HttpStatus.BAD_GATEWAY);
+            });
+        }),
+      );
+    }
+    await this.getDataContentWithImg();
+
+    return true;
+  }
   //schedule
   // @Cron('5 * * * * *')
   // async crawlSchedule() {
@@ -188,11 +242,62 @@ export class ArticleService implements OnModuleInit {
     return data;
   };
 
+  public async getDataContentWithImg(): Promise<boolean> {
+    const articleData = await this.articleRepository.find({
+      where: [{ content: '' }, { content: null }],
+    });
+    const chunk = 7;
+
+    const j = articleData.length;
+    for (let count = 0; count < j; count += chunk) {
+      const tempData = articleData.slice(count, count + chunk);
+      await Promise.all(
+        tempData.map(async u => {
+          const nightMare = new Nightmare({ show: false });
+          console.log(`running ${u.title}`);
+          await nightMare
+            .goto(`${u.link}`)
+            .wait(3000)
+            .evaluate(() => document.querySelector('body').innerHTML)
+            .end()
+            .then(async response => {
+              const contentData = await this._getContentWithImg(response);
+              let date = contentData.date;
+              if (contentData.date) {
+                date = moment(
+                  `${contentData.date.replace(/(^\s+|\s+$)/g, '')}`,
+                  'MMMM Do YYYY',
+                ).format();
+              }
+              await this.articleRepository.save({
+                id: u.id,
+                date: contentData.date,
+                content: contentData.content,
+                imgUrl: contentData.imgUrl,
+                author: contentData.author,
+                thumpImg: contentData.thumpImg,
+                processedDate: date,
+              });
+            })
+            .catch(e => {
+              console.log('error happend', e);
+              // customThrowError(`Error happend, ${e}`, HttpStatus.BAD_GATEWAY);
+            });
+        }),
+      );
+    }
+    console.log('done');
+    return true;
+  }
+
   public async getDataContent(getRequest?: getImg): Promise<boolean> {
     const { getImg } = getRequest;
     const articleData = getImg
       ? await this.articleRepository.find({
           where: [{ thumpImg: null }, { thumpImg: '' }],
+          order: {
+            processedDate: 'DESC',
+          },
         })
       : await this.articleRepository.find({
           where: { content: '' },
@@ -243,6 +348,54 @@ export class ArticleService implements OnModuleInit {
     console.log('done');
     return true;
   }
+
+  private _getContentWithImg = (html: any) => {
+    const data = {
+      author: '',
+      content: '',
+      imgUrl: '',
+      date: '',
+      thumpImg: '',
+    };
+    const $ = cheerio.load(html);
+    $('.image-container.feat div img').each((i, element) => {
+      if (
+        $(element)
+          .attr('src')
+          .includes('/_next')
+      ) {
+        data.thumpImg = $(element).attr('src');
+        return;
+      }
+    });
+    $('.profileImage div img').each((i, element) => {
+      if (
+        $(element)
+          .attr('src')
+          .includes('/_next')
+      ) {
+        data.imgUrl = $(element).attr('src');
+        return;
+      }
+    });
+    $('div .profile div h3 small').each((i, element) => {
+      if ($(element).text()) {
+        data.author = $(element).text();
+        return;
+      }
+    });
+    $('.paragraph').each((i, element) => {
+      data.content = data.content.concat(' ', $(element).text());
+    });
+
+    $('.date').each((i, element) => {
+      if ($(element).text()) {
+        data.date = $(element).text();
+        return;
+      }
+    });
+    return data;
+  };
 
   private _getContent = (html: any, getImg?: boolean) => {
     const data = {
@@ -335,6 +488,61 @@ export class ArticleService implements OnModuleInit {
       .skip(skip)
       .take(take)
       .orderBy('article.processedDate', 'DESC')
+      .select()
+      .getManyAndCount();
+
+    return [articles, count];
+  }
+
+  async getArticlesByDateAndTag(
+    request: ArticleRequest,
+    tagId: number,
+  ): Promise<[Article[], number]> {
+    const { skip, take } = request;
+    const [articles, count] = await this.articleRepository
+      .createQueryBuilder('article')
+      .where('article.tagId = :tagId ', { tagId: tagId })
+      .leftJoinAndSelect('article.tag', 'tag')
+      .skip(skip)
+      .take(take)
+      .orderBy('article.processedDate', 'DESC')
+      .select()
+      .getManyAndCount();
+
+    return [articles, count];
+  }
+
+  async getTags(request: ArticleRequest): Promise<[Tag[], number]> {
+    const { skip, take } = request;
+    const [tags, count] = await this.tagRepository
+      .createQueryBuilder('tag')
+      .skip(skip)
+      .take(take)
+      .orderBy('tag.title', 'ASC')
+      .select()
+      .getManyAndCount();
+
+    return [tags, count];
+  }
+
+  async getTagData(tagId: number): Promise<Tag> {
+    return await this.tagRepository.findOne(tagId);
+  }
+
+  async getSavedArticlesByDate(
+    request: ArticleRequest,
+    articleIds: number | number[] | string | string[],
+  ): Promise<[Article[], number]> {
+    const { skip, take } = request;
+    const articleIdsArr = !Array.isArray(articleIds)
+      ? [articleIds]
+      : articleIds;
+    const [articles, count] = await this.articleRepository
+      .createQueryBuilder('article')
+      .leftJoinAndSelect('article.tag', 'tag')
+      .skip(skip)
+      .take(take)
+      .where({ id: In(articleIdsArr) })
       .select()
       .getManyAndCount();
 
