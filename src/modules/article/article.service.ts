@@ -161,7 +161,7 @@ export class ArticleService implements OnModuleInit {
       });
     }
 
-    const chunk = 6;
+    const chunk = +process.env.CHUNK;
 
     const j = articleArray.length;
     for (let count = 0; count < j; count += chunk) {
@@ -247,7 +247,7 @@ export class ArticleService implements OnModuleInit {
     const articleData = await this.articleRepository.find({
       where: [{ content: '' }, { content: null }],
     });
-    const chunk = 7;
+    const chunk = +process.env.CHUNK;
 
     const j = articleData.length;
     for (let count = 0; count < j; count += chunk) {
