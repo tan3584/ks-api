@@ -209,7 +209,6 @@ export class ArticleService implements OnModuleInit {
   async crawlSchedule() {
     const pythonHost = process.env.PYTHON_HOST;
     //getData
-    console.log('run 45s');
     const newPost = await this.articleRepository.find({
       where: { processed: false },
     });

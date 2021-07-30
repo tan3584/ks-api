@@ -107,4 +107,10 @@ export class ArticleController {
   async cleanData(): Promise<boolean> {
     return await this.articleService.cleanArticles();
   }
+
+  @Get('send-data')
+  @SetMetadata(METADATA.IS_PUBLIC, true)
+  async sendData(): Promise<boolean> {
+    return await this.articleService.crawlSchedule();
+  }
 }
