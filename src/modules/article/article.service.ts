@@ -203,32 +203,34 @@ export class ArticleService implements OnModuleInit {
 
     return true;
   }
-  //schedule
+  // schedule
   // @Cron('5 * * * * *')
-  // async crawlSchedule() {
-  //   //getData
-  //   console.log('run 45s');
-  //   const newPost = await this.articleRepository.find({
-  //     where: { processed: false },
-  //   });
-  //   try {
-  //     for (let i = 0; i < newPost.length; i++) {
-  //       const result = await this.httpService
-  //         .post('localhost:5050/preprocess', newPost)
-  //         .toPromise();
-  //       if (result) {
-  //         await this.articleRepository.save({
-  //           id: newPost[i].id,
-  //           processed: true,
-  //         });
-  //       }
-  //     }
-  //   } catch (e) {
-  //     customThrowError('chedule false, error: ', e);
-  //   }
+  // temporary offf
+  async crawlSchedule() {
+    const pythonHost = process.env.PYTHON_HOST;
+    //getData
+    console.log('run 45s');
+    const newPost = await this.articleRepository.find({
+      where: { processed: false },
+    });
+    try {
+      for (let i = 0; i < newPost.length; i++) {
+        const result = await this.httpService
+          .post(`${pythonHost}`, newPost)
+          .toPromise();
+        if (result) {
+          await this.articleRepository.save({
+            id: newPost[i].id,
+            processed: true,
+          });
+        }
+      }
+    } catch (e) {
+      customThrowError('chedule false, error: ', e);
+    }
 
-  //   return true;
-  // }
+    return true;
+  }
 
   public getData = (html: any) => {
     const data = [];
@@ -300,7 +302,7 @@ export class ArticleService implements OnModuleInit {
           },
         })
       : await this.articleRepository.find({
-          where: { content: '' },
+          where: [{ content: '' }, { date: null }],
           order: {
             processedDate: 'DESC',
           },
@@ -471,7 +473,7 @@ export class ArticleService implements OnModuleInit {
 
         await this.articleRepository.update(
           { id: article.id },
-          { processedDate: date },
+          { processedDate: date, processed: true },
         );
       }
     });
